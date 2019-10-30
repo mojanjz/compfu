@@ -44,14 +44,22 @@ class robot_controller:
         img = cv_image
         img = img[450:(450+IMAGE_H), 0:IMAGE_W] # Apply np slicing for ROI crop
         warped_img = cv2.warpPerspective(img, M, (IMAGE_W, IMAGE_H)) # Image warping
-        cv2.imshow("Image window", cv_image)
+        cv2.imshow("Image window", warped_img)
         cv2.waitKey(3)
-
+        # color = cv_image[719,1279]
+        # print(color)
+        # print(warped_img)
+        sensitivity = 160 # range of sensitivity=[90,150]
+        lower_white = np.array([0,0,255-sensitivity])
+        upper_white = np.array([255,sensitivity,255])
         boundaries = [
-            ([17, 15, 100], [50, 56, 200]),
-            ([86, 31, 4], [220, 88, 50]),
-            ([25, 146, 190], [62, 174, 250]),
-            ([103, 86, 65], [145, 133, 128])
+            # ([17, 15, 100], [50, 56, 200]),
+          
+              ([0, 200, 0],[255, 255, 255]) #white baby
+              ([0, 0, 255-20], [255, 20, 255]), #red
+              ([0, 0, 50], [190, 90, 90]) #gray street
+              ([10,70,10],[70,210,30]) #grass green
+
         ]
         # loop over the boundaries
         for (lower, upper) in boundaries:
@@ -61,11 +69,12 @@ class robot_controller:
         
             # find the colors within the specified boundaries and apply
             # the mask
-            mask = cv2.inRange(cv_image, lower, upper)
-            output = cv2.bitwise_and(cv_image, cv_image, mask = mask)
+            mask = cv2.inRange(warped_img, lower, upper)
+            output = cv2.bitwise_and(warped_img, warped_img, mask = mask)
         
             # show the images
-            cv2.imshow("images", np.hstack([cv_image, output]))
+            # cv2.imshow("images", np.hstack([cv_image, output]))
+            cv2.imshow("images",output)
             cv2.waitKey(0)
         # plt.imshow(cv2.cvtColor(warped_img, cv2.COLOR_BGR2RGB)) # Show results
         # plt.show()
