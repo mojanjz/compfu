@@ -44,8 +44,31 @@ class robot_controller:
         img = cv_image
         img = img[450:(450+IMAGE_H), 0:IMAGE_W] # Apply np slicing for ROI crop
         warped_img = cv2.warpPerspective(img, M, (IMAGE_W, IMAGE_H)) # Image warping
-        plt.imshow(cv2.cvtColor(warped_img, cv2.COLOR_BGR2RGB)) # Show results
-        plt.show()
+        cv2.imshow("Image window", cv_image)
+        cv2.waitKey(3)
+
+        boundaries = [
+            ([17, 15, 100], [50, 56, 200]),
+            ([86, 31, 4], [220, 88, 50]),
+            ([25, 146, 190], [62, 174, 250]),
+            ([103, 86, 65], [145, 133, 128])
+        ]
+        # loop over the boundaries
+        for (lower, upper) in boundaries:
+            # create NumPy arrays from the boundaries
+            lower = np.array(lower, dtype = "uint8")
+            upper = np.array(upper, dtype = "uint8")
+        
+            # find the colors within the specified boundaries and apply
+            # the mask
+            mask = cv2.inRange(cv_image, lower, upper)
+            output = cv2.bitwise_and(cv_image, cv_image, mask = mask)
+        
+            # show the images
+            cv2.imshow("images", np.hstack([cv_image, output]))
+            cv2.waitKey(0)
+        # plt.imshow(cv2.cvtColor(warped_img, cv2.COLOR_BGR2RGB)) # Show results
+        # plt.show()
 
         # gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
 	    # rows_to_take = 150
@@ -55,10 +78,10 @@ class robot_controller:
         # ret, thresh = cv2.threshold(bottom20,127,255,0)
         # img, contours, hierarchy = cv2.findContours(thresh,1,2)
 
-        try:
-            self.image_pub.publish(self.bridge.cv2_to_imgmsg(warped_img, "bgr8"))
-        except CvBridgeError as e:
-            print(e)
+        # try:
+        #     self.image_pub.publish(self.bridge.cv2_to_imgmsg(warped_img, "bgr8"))
+        # except CvBridgeError as e:
+        #     print(e)
     def pid(self,centreOfMass,middlePixel):
         zTwist = 0.1
         xVelocity = 0.03
