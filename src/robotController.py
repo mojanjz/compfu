@@ -44,8 +44,7 @@ class robot_controller:
         img = cv_image
         img = img[450:(450+IMAGE_H), 0:IMAGE_W] # Apply np slicing for ROI crop
         warped_img = cv2.warpPerspective(img, M, (IMAGE_W, IMAGE_H)) # Image warping
-        cv2.imshow("Image window", warped_img)
-        cv2.waitKey(3)
+
 
         #color masks 
         #detecting lines on the street
@@ -63,16 +62,73 @@ class robot_controller:
         #red for cross walk
         lowerRed = np.array([0, 0, 255-20],dtype = "uint8")
         upperRed = np.array([255, 20, 255],dtype = "uint8")
-        greenMask = cv2.inRange(warped_img, lowerGreen, upperGreen)
-
+        redMask = cv2.inRange(warped_img, lowerRed, upperRed)
+        #blue for car detection
+        lowerBlue = np.array([0, 0, 0],dtype = "uint8")
+        upperBlue = np.array([255, 30, 20],dtype = "uint8")
+        blueMask = cv2.inRange(warped_img, lowerBlue, upperBlue)
         #apply masks for lane detection
+        greenOutput = cv2.bitwise_and(warped_img, warped_img, mask = greenMask)
+        redOutput = cv2.bitwise_and(warped_img, warped_img, mask = redMask)
+        greyOutput = cv2.bitwise_and(warped_img, warped_img, mask = grayMask)
         whiteOutput = cv2.bitwise_and(warped_img, warped_img, mask = whiteMask)
-        # cv2.imshow("whiteMask",whiteOutput)
-        # cv2.waitKey(0)
+        blueOutput = cv2.bitwise_and(warped_img, warped_img, mask = blueMask)
+        
+        rowW,colW,rgbW = np.nonzero(whiteOutput)
+        mostFrequentColumnW = np.argmax(np.bincount(colW))
+
+        rowGY, colGY, rbgGY = np.nonzero(greyOutput)
+        mostFrequentColumnGY = np.argmax(np.bincount(colGY))
+
+        print("most frequent col:")
+        print (mostFrequentColumnW)
+        print("most frequent col grey:")
+        print (mostFrequentColumnGY)
+
+        targetLocation = 0
+        lineOffset = 120
+        if(mostFrequentColumnGY > mostFrequentColumnW):
+            targetLocation = mostFrequentColumnW + lineOffset
+        else :
+            targetLocation = mostFrequentColumnW - lineOffset
+        # print("non zero columns")
+        # print(col)
+        # print ("hey")
+        # print(whiteOutput)
+        # print("non zero")
+        print(np.nonzero(whiteOutput))
+
+
+        cv2.circle(warped_img,(targetLocation,20),10,255)
+        cv2.circle(warped_img,(mostFrequentColumnGY,20),10,0)
+        cv2.circle(warped_img,(mostFrequentColumnW,20),10,120)
+        height,width,channels = warped_img.shape
+        middlePixel = width / 2
+        cv2.circle(warped_img,(middlePixel,20),10,200)
+        print("middle pixel")
+        print(middlePixel)
+
+        if(middlePixel > targetLocation):
+            print("turning left")
+        else:
+            print("turning right")
+
+        cv2.imshow("whiteMask",whiteOutput)
+        cv2.waitKey(3)
+        cv2.imshow("Image window", warped_img)
+        cv2.waitKey(3)
+
+        # self.pid(targetLocation,middlePixel)
+
     def pid(self,centreOfMass,middlePixel):
+        twistThreshold = 10
         zTwist = 0.1
         xVelocity = 0.03
         xDifference = centreOfMass - middlePixel
+        if(xDifference > twistThreshold ):
+            xVelocity = 0.0 
+        else:
+            zTwist = 0.0
         #xDifference>0 -> line on right
         vel_msg = Twist()
         vel_msg.linear.x = xVelocity
