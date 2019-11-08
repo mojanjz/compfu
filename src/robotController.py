@@ -11,10 +11,14 @@ import rospy
 from geometry_msgs.msg import Twist
 import matplotlib.pyplot as plt
 import cv2
+
 from std_msgs.msg import String
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
- 
+from matplotlib.pyplot import plot, ion, show
+
+#ion()
+
 
 
 class robot_controller:
@@ -26,6 +30,9 @@ class robot_controller:
         self.velocity_cmd = rospy.Publisher('/R1/cmd_vel', Twist,queue_size=1)
 
     def callback(self,data):
+        plt.ion()
+        plt.show()
+
         try:
             cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
         except CvBridgeError as e:
@@ -74,69 +81,80 @@ class robot_controller:
         whiteOutput = cv2.bitwise_and(warped_img, warped_img, mask = whiteMask)
         blueOutput = cv2.bitwise_and(warped_img, warped_img, mask = blueMask)
         
+        #Make a histogram of the white mask to identify lane characteristics 
         rowW,colW,rgbW = np.nonzero(whiteOutput)
-        mostFrequentColumnW = np.argmax(np.bincount(colW))
-
-        rowGY, colGY, rbgGY = np.nonzero(greyOutput)
-        mostFrequentColumnGY = np.argmax(np.bincount(colGY))
-
-        print("most frequent col:")
-        print (mostFrequentColumnW)
-        print("most frequent col grey:")
-        print (mostFrequentColumnGY)
-
-        targetLocation = 0
-        lineOffset = 120
-        if(mostFrequentColumnGY > mostFrequentColumnW):
-            targetLocation = mostFrequentColumnW + lineOffset
-        else :
-            targetLocation = mostFrequentColumnW - lineOffset
-        # print("non zero columns")
-        # print(col)
-        # print ("hey")
-        # print(whiteOutput)
-        # print("non zero")
-        print(np.nonzero(whiteOutput))
-
-
-        cv2.circle(warped_img,(targetLocation,20),10,255)
-        cv2.circle(warped_img,(mostFrequentColumnGY,20),10,0)
-        cv2.circle(warped_img,(mostFrequentColumnW,20),10,120)
-        height,width,channels = warped_img.shape
-        middlePixel = width / 2
-        cv2.circle(warped_img,(middlePixel,20),10,200)
-        print("middle pixel")
-        print(middlePixel)
-
-        if(middlePixel > targetLocation):
-            print("turning left")
-        else:
-            print("turning right")
+        sumColW = np.bincount(colW)
+        print("White column sum")
+        print(sumColW)
+        plt.plot(sumColW)
+        plt.draw()
+        plt.pause(0.001)
 
         cv2.imshow("whiteMask",whiteOutput)
         cv2.waitKey(3)
-        cv2.imshow("Image window", warped_img)
-        cv2.waitKey(3)
+        cv2.imshow("Image window", warped_img)     
 
-        # self.pid(targetLocation,middlePixel)
+        rowGY, colGY, rbgGY = np.nonzero(greyOutput)
 
-    def pid(self,centreOfMass,middlePixel):
-        twistThreshold = 10
-        zTwist = 0.1
-        xVelocity = 0.03
-        xDifference = centreOfMass - middlePixel
-        if(xDifference > twistThreshold ):
-            xVelocity = 0.0 
-        else:
-            zTwist = 0.0
-        #xDifference>0 -> line on right
-        vel_msg = Twist()
-        vel_msg.linear.x = xVelocity
-        vel_msg.angular.z = -zTwist * xDifference
-        print (vel_msg)
-        self.velocity_cmd.publish(vel_msg)
-        
 
+        # mostFrequentColumnGY = np.argmax(np.bincount(colGY))
+
+    #     print("most frequent col:")
+    #     print (mostFrequentColumnW)
+    #     print("most frequent col grey:")
+    #     print (mostFrequentColumnGY)
+
+    #     targetLocation = 0
+    #     lineOffset = 120
+    #     if(mostFrequentColumnGY > mostFrequentColumnW):
+    #         targetLocation = mostFrequentColumnW + lineOffset
+    #     else :
+    #         targetLocation = mostFrequentColumnW - lineOffset
+    #     # print("non zero columns")
+    #     # print(col)
+    #     # print ("hey")
+    #     # print(whiteOutput)
+    #     # print("non zero")
+    #     print(np.nonzero(whiteOutput))
+
+
+    #     cv2.circle(warped_img,(targetLocation,20),10,255)
+    #     cv2.circle(warped_img,(mostFrequentColumnGY,20),10,0)
+    #     cv2.circle(warped_img,(mostFrequentColumnW,20),10,120)
+    #     height,width,channels = warped_img.shape
+    #     middlePixel = width / 2
+    #     cv2.circle(warped_img,(middlePixel,20),10,200)
+    #     print("middle pixel")
+    #     print(middlePixel)
+
+    #     if(middlePixel > targetLocation):
+    #         print("turning left")
+    #     else:
+    #         print("turning right")
+
+    #     cv2.imshow("whiteMask",whiteOutput)
+    #     cv2.waitKey(3)
+    #     cv2.imshow("Image window", warped_img)
+    #     cv2.waitKey(3)
+
+    #     # self.pid(targetLocation,middlePixel)
+
+    # def pid(self,centreOfMass,middlePixel):
+    #     twistThreshold = 10
+    #     zTwist = 0.1
+    #     xVelocity = 0.03
+    #     xDifference = centreOfMass - middlePixel
+    #     if(xDifference > twistThreshold ):
+    #         xVelocity = 0.0 
+    #     else:
+    #         zTwist = 0.0
+    #     #xDifference>0 -> line on right
+    #     vel_msg = Twist()
+    #     vel_msg.linear.x = xVelocity
+    #     vel_msg.angular.z = -zTwist * xDifference
+    #     print (vel_msg)
+    #     self.velocity_cmd.publish(vel_msg)
+     
 
 def main(args):
     rospy.init_node('robot_controller', anonymous=True)
@@ -149,6 +167,8 @@ def main(args):
 
 if __name__ == '__main__':
     main(sys.argv)
+
+
 
 
 
