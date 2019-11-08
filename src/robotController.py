@@ -51,6 +51,8 @@ class robot_controller:
         lowerWhite = np.array([0, 200, 0],dtype = "uint8")
         upperWhite = np.array([255, 255, 255],dtype = "uint8")
         whiteMask = cv2.inRange(warped_img, lowerWhite, upperWhite)
+	whiteMask = cv2.erode(whiteMask, None, iterations=2)
+	# whiteMask = cv2.dilate(whiteMask, None, iterations=2)
         #detecting the street
         lowerGray = np.array([0, 0, 50],dtype = "uint8")
         upperGray = np.array([190, 90, 90],dtype = "uint8")
@@ -74,65 +76,103 @@ class robot_controller:
         whiteOutput = cv2.bitwise_and(warped_img, warped_img, mask = whiteMask)
         blueOutput = cv2.bitwise_and(warped_img, warped_img, mask = blueMask)
         
-        rowW,colW,rgbW = np.nonzero(whiteOutput)
-        mostFrequentColumnW = np.argmax(np.bincount(colW))
+        edges = cv2.Canny(whiteOutput, 100, 200)
+        lines = cv2.HoughLinesP(edges,1,np.pi/180, 20, 100)
+        m = []
 
-        rowGY, colGY, rbgGY = np.nonzero(greyOutput)
-        mostFrequentColumnGY = np.argmax(np.bincount(colGY))
-
-        print("most frequent col:")
-        print (mostFrequentColumnW)
-        print("most frequent col grey:")
-        print (mostFrequentColumnGY)
-
-        targetLocation = 0
-        lineOffset = 120
-        if(mostFrequentColumnGY > mostFrequentColumnW):
-            targetLocation = mostFrequentColumnW + lineOffset
-        else :
-            targetLocation = mostFrequentColumnW - lineOffset
-        # print("non zero columns")
-        # print(col)
-        # print ("hey")
-        # print(whiteOutput)
-        # print("non zero")
-        print(np.nonzero(whiteOutput))
-
-
-        cv2.circle(warped_img,(targetLocation,20),10,255)
-        cv2.circle(warped_img,(mostFrequentColumnGY,20),10,0)
-        cv2.circle(warped_img,(mostFrequentColumnW,20),10,120)
-        height,width,channels = warped_img.shape
-        middlePixel = width / 2
-        cv2.circle(warped_img,(middlePixel,20),10,200)
-        print("middle pixel")
-        print(middlePixel)
-
-        if(middlePixel > targetLocation):
-            print("turning left")
+        if (lines is None):
+            self.pid(0)
         else:
-            print("turning right")
+            for line in lines:
+                for points in line:
+                    # print(points)
+                    m.append(float (points[0] - points[2]) / (points[1] - points[3]))
+            m = [x for x in m if str(x) != 'nan'] #gets rid of nan values
+            sumOfSlopes = 0
+            numOfSlopes = 0
+            numberOfInfinity = 0
+            for slope in m:
+                if slope == float("-inf") or slope == float("inf"):
+                    numberOfInfinity = numberOfInfinity + 1
+                else:
+                    sumOfSlopes = sumOfSlopes + slope
+                    averageSlope = sumOfSlopes / numOfSlopes
+                    numOfSlopes = numOfSlopes + 1
+            # print("slopes")
+            # print (m)
+            # print ("sum of slopes")
+            # print (sumOfSlopes)
+            # print("num of slopes")
+            # print(numOfSlopes)
+            # print("num of inf slopes")
+            # print(numberOfInfinity)
+            print("average slope")
+            print(averageSlope)
+            for i in range(len(lines)):
+                for x1,y1,x2,y2 in lines[i]:
+                    cv2.line(whiteOutput,(x1,y1), (x2,y2), (0,255,0), 2)
+            # cv2.imwrite("hough lines.jpg",warped_img)
 
-        cv2.imshow("whiteMask",whiteOutput)
-        cv2.waitKey(3)
-        cv2.imshow("Image window", warped_img)
-        cv2.waitKey(3)
+            # rowW,colW,rgbW = np.nonzero(whiteOutput)
+            # mostFrequentColumnW = np.argmax(np.bincount(colW))
 
-        # self.pid(targetLocation,middlePixel)
+            # rowGY, colGY, rbgGY = np.nonzero(greyOutput)
+            # mostFrequentColumnGY = np.argmax(np.bincount(colGY))
 
-    def pid(self,centreOfMass,middlePixel):
-        twistThreshold = 10
-        zTwist = 0.1
+            # print("most frequent col:")
+            # print (mostFrequentColumnW)
+            # print("most frequent col grey:")
+            # print (mostFrequentColumnGY)
+
+            # targetLocation = 0
+            # lineOffset = 120
+            # if(mostFrequentColumnGY > mostFrequentColumnW):
+            #     targetLocation = mostFrequentColumnW + lineOffset
+            # else :
+            #     targetLocation = mostFrequentColumnW - lineOffset
+            # print("non zero columns")
+            # print(col)
+            # print ("hey")
+            # print(whiteOutput)
+            # print("non zero")
+            # print(np.nonzero(whiteOutput))
+
+
+            # cv2.circle(warped_img,(targetLocation,20),10,255)
+            # cv2.circle(warped_img,(mostFrequentColumnGY,20),10,0)
+            # cv2.circle(warped_img,(mostFrequentColumnW,20),10,120)
+            # height,width,channels = warped_img.shape
+            # middlePixel = width / 2
+            # cv2.circle(warped_img,(middlePixel,20),10,200)
+            # print("middle pixel")
+            # print(middlePixel)
+
+            # if(middlePixel > targetLocation):
+            #     print("turning left")
+            # else:
+            #     print("turning right")
+
+            cv2.imshow("whiteMask",whiteOutput)
+            cv2.waitKey(3)
+            cv2.imshow("Image window", warped_img)
+            cv2.waitKey(3)
+
+            self.pid(averageSlope)
+
+    def pid(self,slope):
+        slopeThresh = 0.05
+        angularScale = 5
         xVelocity = 0.03
-        xDifference = centreOfMass - middlePixel
-        if(xDifference > twistThreshold ):
+        zTwist = 0.0
+        if(abs(slope) > slopeThresh ):
             xVelocity = 0.0 
+            zTwist = angularScale * slope
         else:
             zTwist = 0.0
         #xDifference>0 -> line on right
         vel_msg = Twist()
         vel_msg.linear.x = xVelocity
-        vel_msg.angular.z = -zTwist * xDifference
+        vel_msg.angular.z = zTwist
         print (vel_msg)
         self.velocity_cmd.publish(vel_msg)
         
