@@ -37,27 +37,27 @@ class robot_controller:
         IMAGE_H = rows
         IMAGE_W = cols
 
-        #birdeye view of the image
-        src = np.float32([[0, IMAGE_H], [1207, IMAGE_H], [0, 0], [IMAGE_W, 0]])
-        dst = np.float32([[569, IMAGE_H], [711, IMAGE_H], [0, 0], [IMAGE_W, 0]])
-        M = cv2.getPerspectiveTransform(src, dst) # The transformation matrix
-        Minv = cv2.getPerspectiveTransform(dst, src) # Inverse transformation
+        # #birdeye view of the image
+        # src = np.float32([[0, IMAGE_H], [1207, IMAGE_H], [0, 0], [IMAGE_W, 0]])
+        # dst = np.float32([[569, IMAGE_H], [711, IMAGE_H], [0, 0], [IMAGE_W, 0]])
+        # M = cv2.getPerspectiveTransform(src, dst) # The transformation matrix
+        # Minv = cv2.getPerspectiveTransform(dst, src) # Inverse transformation
 
     
-        cv_image = cv_image[450:(450+IMAGE_H), 0:IMAGE_W] # Apply np slicing for ROI crop
-        warped_img = cv2.warpPerspective(cv_image, M, (IMAGE_W, IMAGE_H)) # Image warping
-
+        # cv_image = cv_image[450:(450+IMAGE_H), 0:IMAGE_W] # Apply np slicing for ROI crop
+        # warped_img = cv2.warpPerspective(cv_image, M, (IMAGE_W, IMAGE_H)) # Image warping
+        warped_img = cv_image[rows-100:, cols-400:cols] #CHANGE 
         #color masks 
         #detecting lines on the street
         lowerWhite = np.array([250, 250, 250],dtype = "uint8")
         upperWhite = np.array([255, 255, 255],dtype = "uint8")
         whiteMask = cv2.inRange(warped_img, lowerWhite, upperWhite)
         # whiteMask = cv2.blur(whiteMask, (5,5))
-        # whiteMask = cv2.medianBlur(whiteMask, 19)
+        whiteMask = cv2.medianBlur(whiteMask, 5)
         whiteMask = cv2.erode(whiteMask, None, iterations=2)
 	# whiteMask = cv2.dilate(whiteMask, None, iterations=2)
         #detecting the street
-        lowerGray = np.array([0, 0, 50],dtype = "uint8")
+        lowerGray = np.array([50, 80, 50],dtype = "uint8")
         upperGray = np.array([190, 90, 90],dtype = "uint8")
         grayMask = cv2.inRange(warped_img, lowerGray, upperGray)
         #grass green
@@ -75,107 +75,51 @@ class robot_controller:
         #apply masks for lane detection
         greenOutput = cv2.bitwise_and(warped_img, warped_img, mask = greenMask)
         redOutput = cv2.bitwise_and(warped_img, warped_img, mask = redMask)
-        greyOutput = cv2.bitwise_and(warped_img, warped_img, mask = grayMask)
+        grayOutput = cv2.bitwise_and(warped_img, warped_img, mask = grayMask)
         whiteOutput = cv2.bitwise_and(warped_img, warped_img, mask = whiteMask)
         blueOutput = cv2.bitwise_and(warped_img, warped_img, mask = blueMask)
-        
-        edges = cv2.Canny(whiteOutput, 100, 200)
-        lines = cv2.HoughLinesP(edges,1,np.pi/180, 20, 100)
-        m = [] #list for slopes of the detected lines 
 
-        STRAIGHT = 4000
-        if (lines is None):
-            self.pid(STRAIGHT) #go straight
-        else:
-            for line in lines:
-                for points in line:
-                    m.append(float (points[1] - points[3]) / (points[0] - points[2])) #  m = y/x
-            m = [x for x in m if str(x) != 'nan'] #gets rid of nan values
-            sumOfSlopes = 0
-            numOfSlopes = 0
-            numberOfInfinity = 0
-            # print(m)
-            for slope in m:
-                if slope == float("-inf") or slope == float("inf"):
-                    numberOfInfinity = numberOfInfinity + 1
-                else:
-                    sumOfSlopes = sumOfSlopes + slope
-                    numOfSlopes = numOfSlopes + 1
-            # print("slopes")
-            # print (m)
-            # print ("sum of slopes")
-            # print (sumOfSlopes)
-            print("num of slopes")
-            print(numOfSlopes)
-            print("num of inf slopes")
-            print(numberOfInfinity)
-            if(numberOfInfinity > infinityThresh*numOfSlopes): #we should go straight
-                averageSlope = float("inf")
-            else: 
-                averageSlope = sumOfSlopes / numOfSlopes #we should turn
-            print("average slope")
-            print(averageSlope)
-            longestLength = 0
-            longestLine = [0,0,0,0]
-            #drawing the hough lines on the white mask
-            cv2.line(whiteOutput,(int(cols/2),int(rows/2)), (int(20 / averageSlope + cols/2), int(rows/2 + 20)),(255,0,0),2)
-            for i in range(len(lines)):
-                for x1,y1,x2,y2 in lines[i]:
-                    length = ((x2-x1)**2 + (y2-y1)**2)**(0.5)
-                    if(length > longestLength):
-                        longestLength = length
-                        longestLine = [x1,y1,x2,y2]
-                    # cv2.line(whiteOutput,(x1,y1), (x2,y2), (0,255,0), 2)
-            cv2.line(whiteOutput,(longestLine[0],longestLine[1]),(longestLine[2],longestLine[3]), (0,0,255), 2)
-            # cv2.imwrite("hough lines.jpg",warped_img)
+        grayWarped = cv2.cvtColor(whiteOutput,cv2.COLOR_BGR2GRAY)
+        ret,thresh = cv2.threshold(grayWarped, 20, 255, 0)
+        img, contours, hierarchy = cv2.findContours(thresh, 1, 2)
+        # img = cv2.bitwise_not(img)
+        #find center of mass
+        M = cv2.moments(img)
+        cX = cols - 400 + int(M["m10"]/M["m00"])
+        cY = rows - 100 + int(M["m01"]/ M["m00"])
 
-            # rowW,colW,rgbW = np.nonzero(whiteOutput)
-            # mostFrequentColumnW = np.argmax(np.bincount(colW))
+        middlePixel = cols/2
+        offset = abs(middlePixel - cX)
+        print(offset)
+        cv2.circle(cv_image, (cX,cY), 5, (255,0,0))
+        cv2.imshow("whiteMask",whiteOutput)
+        cv2.waitKey(3)
+        cv2.imshow("Image window", warped_img)
+        cv2.waitKey(3)
+        cv2.imshow("contour image",cv_image)
+        cv2.waitKey(3)
 
-            # rowGY, colGY, rbgGY = np.nonzero(greyOutput)
-            # mostFrequentColumnGY = np.argmax(np.bincount(colGY))
+        self.pid(offset)
 
-            # print("most frequent col:")
-            # print (mostFrequentColumnW)
-            # print("most frequent col grey:")
-            # print (mostFrequentColumnGY)
-
-            # targetLocation = 0
-            # lineOffset = 120
-            # if(mostFrequentColumnGY > mostFrequentColumnW):
-            #     targetLocation = mostFrequentColumnW + lineOffset
-            # else :
-            #     targetLocation = mostFrequentColumnW - lineOffset
-            # print("non zero columns")
-            # print(col)
-            # print ("hey")
-            # print(whiteOutput)
-            # print("non zero")
-            # print(np.nonzero(whiteOutput))
-
-
-            # cv2.circle(warped_img,(targetLocation,20),10,255)
-            # cv2.circle(warped_img,(mostFrequentColumnGY,20),10,0)
-            # cv2.circle(warped_img,(mostFrequentColumnW,20),10,120)
-
-            cv2.imshow("whiteMask",whiteOutput)
-            cv2.waitKey(3)
-            cv2.imshow("Image window", warped_img)
-            cv2.waitKey(3)
-
-            self.pid(averageSlope)
-
-    def pid(self,slope):
-        slopeThresh = 5000
-        angularScale = 2
+    def pid(self,offset):
+        # slopeThresh = 5000
+        angularScale = 5
+        targetOffset = 450
         xVelocity = 0.03
         zTwist = 0.0
-        if(abs(slope) < slopeThresh and abs(self.prevSlope) > slopeThresh):
-            xVelocity = 0.0 
-            zTwist = float(angularScale  / slope)
-            self.prevSlope = slope 
-        else:
-            self.prevSlope = float("inf")
+        targetDifference = abs(targetOffset - offset)
+        print("target difference:")
+        print(targetDifference)
+        if(targetDifference > 0):
+            print("turn left")
+            xVelocity = 0.0
+            zTwist = angularScale * targetDifference
+        # if(abs(slope) < slopeThresh and abs(self.prevSlope) > slopeThresh):
+        #     xVelocity = 0.0 
+        #     zTwist = float(angularScale  / slope)
+        #     self.prevSlope = slope 
+        # else:
+        #     self.prevSlope = float("inf")
         vel_msg = Twist()
         vel_msg.linear.x = xVelocity
         vel_msg.angular.z = zTwist
