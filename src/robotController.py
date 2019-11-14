@@ -24,10 +24,9 @@ class robot_controller:
         self.bridge = CvBridge()
         self.image_sub = rospy.Subscriber("/R1/pi_camera/image_raw",Image,self.callback)
         self.velocity_cmd = rospy.Publisher('/R1/cmd_vel', Twist,queue_size=1)
-        self.prevSlope = 0
+        self.targetOffset = 450
 
     def callback(self,data):
-        infinityThresh = 1.4
         try:
             cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
         except CvBridgeError as e:
@@ -46,7 +45,7 @@ class robot_controller:
     
         # cv_image = cv_image[450:(450+IMAGE_H), 0:IMAGE_W] # Apply np slicing for ROI crop
         # warped_img = cv2.warpPerspective(cv_image, M, (IMAGE_W, IMAGE_H)) # Image warping
-        warped_img = cv_image[rows-100:, cols-400:cols] #CHANGE 
+        warped_img = cv_image[rows-200:, cols-400:cols] #CHANGE 
         #color masks 
         #detecting lines on the street
         lowerWhite = np.array([250, 250, 250],dtype = "uint8")
@@ -82,15 +81,24 @@ class robot_controller:
         grayWarped = cv2.cvtColor(whiteOutput,cv2.COLOR_BGR2GRAY)
         ret,thresh = cv2.threshold(grayWarped, 20, 255, 0)
         img, contours, hierarchy = cv2.findContours(thresh, 1, 2)
-        # img = cv2.bitwise_not(img)
         #find center of mass
         M = cv2.moments(img)
-        cX = cols - 400 + int(M["m10"]/M["m00"])
-        cY = rows - 100 + int(M["m01"]/ M["m00"])
-
-        middlePixel = cols/2
-        offset = abs(middlePixel - cX)
-        print(offset)
+        offset = 0
+        middlePixel = 0
+        cX = 0
+        cY = 0
+        if(M["m00"] == 0):
+            offset = self.targetOffset
+        else:
+            cX = cols - 400 + int(M["m10"]/M["m00"])
+            cY = rows - 200 + int(M["m01"]/ M["m00"])
+            middlePixel = cols/2
+            offset = cX - middlePixel
+            print("current offset:")
+            print(offset)
+            print("target offset: ")
+            print(self.targetOffset)
+        cv2.circle(cv_image,(middlePixel,cY), 5, (255,0,0))
         cv2.circle(cv_image, (cX,cY), 5, (255,0,0))
         cv2.imshow("whiteMask",whiteOutput)
         cv2.waitKey(3)
@@ -103,23 +111,21 @@ class robot_controller:
 
     def pid(self,offset):
         # slopeThresh = 5000
+        differenceTolerance = 55
         angularScale = 5
-        targetOffset = 450
         xVelocity = 0.03
         zTwist = 0.0
-        targetDifference = abs(targetOffset - offset)
-        print("target difference:")
-        print(targetDifference)
-        if(targetDifference > 0):
-            print("turn left")
+        offsetOvershoot = self.targetOffset - offset
+        print("offset overshoot")
+        print(offsetOvershoot )
+        if(abs(offsetOvershoot) > differenceTolerance):
+            print("turning")
+            if(offsetOvershoot > 0):
+                print ("right")
+            else:
+                print("left")
             xVelocity = 0.0
-            zTwist = angularScale * targetDifference
-        # if(abs(slope) < slopeThresh and abs(self.prevSlope) > slopeThresh):
-        #     xVelocity = 0.0 
-        #     zTwist = float(angularScale  / slope)
-        #     self.prevSlope = slope 
-        # else:
-        #     self.prevSlope = float("inf")
+            zTwist = angularScale * offsetOvershoot
         vel_msg = Twist()
         vel_msg.linear.x = xVelocity
         vel_msg.angular.z = zTwist
