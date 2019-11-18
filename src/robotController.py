@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from __future__ import print_function
-
+import time
 import roslib
 import numpy as np
 import math
@@ -100,10 +100,10 @@ class robot_controller:
             print(self.targetOffset)
         cv2.circle(cv_image,(middlePixel,cY), 5, (255,0,0))
         cv2.circle(cv_image, (cX,cY), 5, (255,0,0))
-        cv2.imshow("whiteMask",whiteOutput)
-        cv2.waitKey(3)
-        cv2.imshow("Image window", warped_img)
-        cv2.waitKey(3)
+        # cv2.imshow("whiteMask",whiteOutput)
+        # cv2.waitKey(3)
+        # cv2.imshow("Image window", warped_img)
+        # cv2.waitKey(3)
         cv2.imshow("contour image",cv_image)
         cv2.waitKey(3)
 
@@ -131,11 +131,36 @@ class robot_controller:
         vel_msg.angular.z = zTwist
         # print (vel_msg)
         self.velocity_cmd.publish(vel_msg)
+
+def initializeAfterSpawn():
+    straightTime = 0.8
+    turnTime = 0.05
+    #initialize velocity publishing
+    velocity_cmd = rospy.Publisher('/R1/cmd_vel', Twist,queue_size=1)
+    print("in the initialization spawn")
+    #start tracking time
+    startTime = time.time()
+    #CHANGE : For now assume that we are spawned in the time trials location
+    while((time.time()-startTime)<straightTime):
+        print("yeeting forward")
+        #go straight
+        vel_msg = Twist()
+        vel_msg.linear.x = 1
+        vel_msg.angular.z = 0
+        velocity_cmd.publish(vel_msg)
+    startTime = time.time()
+    while((time.time()-startTime)<turnTime):
+        print("turning left")
+        #turn left
+        vel_msg = Twist()
+        vel_msg.linear.x = 0
+        vel_msg.angular.z = 1
+        velocity_cmd.publish(vel_msg)
         
 
 
 def main(args):
-    rospy.init_node('robot_controller', anonymous=True)
+    #rospy.init_node('robot_controller', anonymous=True)
     rc = robot_controller()
     # try:
     rospy.spin()
@@ -144,6 +169,8 @@ def main(args):
     # cv2.destroyAllWindows()
 
 if __name__ == '__main__':
+    rospy.init_node('robot_controller', anonymous=True)
+    initializeAfterSpawn()
     main(sys.argv)
 
 
