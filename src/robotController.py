@@ -78,6 +78,7 @@ class robot_controller:
         whiteOutput = cv2.bitwise_and(warped_img, warped_img, mask = whiteMask)
         blueOutput = cv2.bitwise_and(warped_img, warped_img, mask = blueMask)
 
+        
         grayWarped = cv2.cvtColor(whiteOutput,cv2.COLOR_BGR2GRAY)
         ret,thresh = cv2.threshold(grayWarped, 20, 255, 0)
         img, contours, hierarchy = cv2.findContours(thresh, 1, 2)
@@ -94,16 +95,16 @@ class robot_controller:
             cY = rows - 200 + int(M["m01"]/ M["m00"])
             middlePixel = cols/2
             offset = cX - middlePixel
-            print("current offset:")
-            print(offset)
-            print("target offset: ")
-            print(self.targetOffset)
+            # print("current offset:")
+            # print(offset)
+            # print("target offset: ")
+            # print(self.targetOffset)
         cv2.circle(cv_image,(middlePixel,cY), 5, (255,0,0))
         cv2.circle(cv_image, (cX,cY), 5, (255,0,0))
         # cv2.imshow("whiteMask",whiteOutput)
         # cv2.waitKey(3)
-        # cv2.imshow("Image window", warped_img)
-        # cv2.waitKey(3)
+        cv2.imshow("Image window", warped_img)
+        cv2.waitKey(3)
         cv2.imshow("contour image",cv_image)
         cv2.waitKey(3)
 
@@ -116,14 +117,14 @@ class robot_controller:
         xVelocity = 0.03
         zTwist = 0.0
         offsetOvershoot = self.targetOffset - offset
-        print("offset overshoot")
-        print(offsetOvershoot )
+        # print("offset overshoot")
+        # print(offsetOvershoot )
         if(abs(offsetOvershoot) > differenceTolerance):
-            print("turning")
-            if(offsetOvershoot > 0):
-                print ("right")
-            else:
-                print("left")
+            # print("turning")
+            # if(offsetOvershoot > 0):
+            #     print ("right")
+            # else:
+            #     print("left")
             xVelocity = 0.0
             zTwist = angularScale * offsetOvershoot
         vel_msg = Twist()
@@ -137,12 +138,12 @@ def initializeAfterSpawn():
     turnTime = 0.05
     #initialize velocity publishing
     velocity_cmd = rospy.Publisher('/R1/cmd_vel', Twist,queue_size=1)
-    print("in the initialization spawn")
+    # print("in the initialization spawn")
     #start tracking time
     startTime = time.time()
     #CHANGE : For now assume that we are spawned in the time trials location
     while((time.time()-startTime)<straightTime):
-        print("yeeting forward")
+        # print("yeeting forward")
         #go straight
         vel_msg = Twist()
         vel_msg.linear.x = 1
@@ -150,7 +151,7 @@ def initializeAfterSpawn():
         velocity_cmd.publish(vel_msg)
     startTime = time.time()
     while((time.time()-startTime)<turnTime):
-        print("turning left")
+        # print("turning left")
         #turn left
         vel_msg = Twist()
         vel_msg.linear.x = 0
@@ -170,7 +171,7 @@ def main(args):
 
 if __name__ == '__main__':
     rospy.init_node('robot_controller', anonymous=True)
-    initializeAfterSpawn()
+    # initializeAfterSpawn()
     main(sys.argv)
 
 
