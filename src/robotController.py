@@ -35,7 +35,8 @@ class robot_controller:
             cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
         except CvBridgeError as e:
             print(e)
-
+        
+        contourToFollow = 0
         rows,cols,channels = cv_image.shape
         IMAGE_H = rows
         IMAGE_W = cols
@@ -77,26 +78,41 @@ class robot_controller:
         grayWarped = cv2.cvtColor(whiteOutput,cv2.COLOR_BGR2GRAY)
         ret,thresh = cv2.threshold(grayWarped, 20, 255, 0)
         img, contours, hierarchy = cv2.findContours(thresh, 1, 2)
-        smallX=0
+        bigX=0
+        cntPoints = {}
         if(len(contours)>0):
+            print("Num of Contours")
+            print(len(contours))
+            #iterate over contours
             for cnt in contours:
+                #Get rid of tiny contours
                 if(cv2.contourArea(cnt) > 2):
-                    print("First point")
-                    print(cnt[0][0][0])
-                    firstX = cnt[0][0][0]
-                    if(firstX>smallX):
-                        rightCnt = cnt
+                    #iterate over each point
+                    for pt in cnt:
+                        if (pt[0][0]>bigX):
+                            bigX = pt[0][0]
+                    print("big X:")
+                    print(bigX)
+                    cntPoints[bigX]=cnt
+            orderedcnts = sorted(cntPoints.keys(),reverse=True)
+            contourToFollow = cntPoints[orderedcnts[0]]
+            # print("ordered")
+            # print(orderedcnts)
+            # print(cntPoints[orderedcnts[0]])
+            # # print("cntPoints")
+            # # print(cntPoints)
 
-            cv2.drawContours(whiteOutput,cnt,-1,(0,255,0),3)
+
+            cv2.drawContours(whiteOutput,cntPoints[orderedcnts[0]],-1,(0,255,0),3)
             cv2.imshow("white",whiteOutput)
             cv2.waitKey(3)
 
-            
         #check if we can see the red line indicating a cross walk
         redPercentage =float( np.count_nonzero(np.asarray(redOutput))) / float(np.count_nonzero(np.asarray(crosswalkImage)))
         initWhitePercentage = float( np.count_nonzero(np.asarray(initWhiteOutput))) / float(np.count_nonzero(np.asarray(crosswalkImage)))
+        
         #Find center of mass for initialization & driving
-        M = cv2.moments(img)
+        M = cv2.moments(contourToFollow)
         middlePixel = 0
         cX = 0
         cY = 0
