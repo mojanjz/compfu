@@ -29,10 +29,11 @@ class robot_controller:
         self.sawCrosswalk = False
         self.atCrosswalk = False
         self.offCrosswalk = True
-        self.state =  "initializing" #"driving" #CHANGE "initializing"
+        self.state =  "driving" #CHANGE "initializing"
         self.GO_STRAIGHT = self.targetOffset
         self.TURN_LEFT = 0
         self.initDoneStraight = False
+
     def callback(self,data):
         try:
             cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
@@ -44,6 +45,7 @@ class robot_controller:
         IMAGE_W = cols
         warped_img = cv_image[rows-200:, cols-400:cols] #CHANGE 
         crosswalkImage = cv_image[rows-200:,0:cols]
+        pedImage = cv_image[rows-500:,0:cols]
         initImage = cv_image[rows-300:,0:cols]
         #color masks 
         #detecting lines on the street
@@ -81,11 +83,9 @@ class robot_controller:
         grayWarped = cv2.cvtColor(whiteOutput,cv2.COLOR_BGR2GRAY)
         ret,thresh = cv2.threshold(grayWarped, 20, 255, 0)
         img, contours, hierarchy = cv2.findContours(thresh, 1, 2)
-
             
         #check if we can see the red line indicating a cross walk
-        #redPercentage = np.divide( float( np.count_nonzero(redOutput)) , float(np.count_nonzero(crosswalkImage)))
-        #pedWhitePercentage = np.divide(float( np.count_nonzero(initWhiteOutput)) , float(np.count_nonzero(crosswalkImage)))
+        redPixelCount = np.count_nonzero(redOutput)
 
         cv2.imshow("init white output",initWhiteOutput)
         cv2.waitKey(3)
@@ -110,7 +110,6 @@ class robot_controller:
             cY = rows - 200 + int(M["m01"]/ M["m00"])
             middlePixel = cols/2
             offset = cX - middlePixel
-            print(offset)
         #Draw circles on image for troubleshooting
         cv2.circle(cv_image,(middlePixel,cY), 5, (255,0,0))
         cv2.circle(cv_image, (cX,cY), 5, (255,0,0))
@@ -119,9 +118,6 @@ class robot_controller:
         cv2.imshow("contour image",cv_image)
         cv2.waitKey(3)
         cv2.imshow("crosswalk view",crosswalkImage)
-
-        print("Offset")
-        print(offset)
 
         #State machine for driving
         if(self.state == "initializing"):
@@ -138,11 +134,11 @@ class robot_controller:
                 self.initDoneStraight = True
                 print("else")
                 #If still facing the line head on, turn left
-                if(initWhitePercentage > 0.07):
+                if(initWhitePercentage > 0.05):
                     print("Still facing - Turning to init")
                     self.pid(self.TURN_LEFT)
                 #If you've lined up with right lane line, drive on
-                elif((abs(offset)<self.targetOffset+60) and (abs(offset)>self.targetOffset -60)):
+                elif((abs(offset)<self.targetOffset+60) and (abs(offset)>self.targetOffset-60)):
                     print("Done init!")
                     initComplete = True
                 #Keep turning until tofu is in line with right lane line
@@ -157,34 +153,44 @@ class robot_controller:
         if (self.state == "driving"): #CHANGE
             print("Driving...")
             self.pid(offset) #CHANGE
-            #Decide on exit state - for time trials
-            self.state = "driving"
-            # if(redPercentage == 0):
-            #         self.state = "driving"
-            # else:
-            #         self.state = "entering_crosswalk"
+            # #Decide on exit state - for time trials
+            # self.state = "driving"
+            if(redPixelCount == 0):
+                    self.state = "driving"
+            else:
+                    self.state = "entering_crosswalk"
             
         
         elif (self.state == "entering_crosswalk"):
             print("Entering crosswalk...")
-            if(redPercentage>0):
+            self.pid(offset)
+            if(redPixelCount>0):
                 self.state = "entering_crosswalk"
             else:
-                self.state = "on_crosswalk"
+                self.state = "waiting_for_ped"
 
         elif (self.state == "waiting_for_ped"):
+            self.stop()
+            pedImage = cv_image[rows-300:,0:cols]
+            # pedWhiteMask = cv2.inRange(pedImage, lowerWhite, upperWhite)
+            # pedWhitePercentage = np.divide(float(np.count_nonzero(pedWhiteMask)) , float(np.count_nonzero(pedImage)))            
             print("Waiting for pedestrian...")
 
+            cv2.imshow("PedView",pedImage)
+            cv2.waitKey(3)
+
         elif (self.state == "on_crosswalk"):
+            self.pid(offset)
             print("On crosswalk...")
-            if (redPercentage ==0):
+            if (redPixelCount ==0):
                 self.state = "on_crosswalk"
             else:
                 self.state = "exiting_crosswalk"
 
         elif (self.state == "exiting_crosswalk"):
+            self.pid(offset)
             print("Exiting crosswalk...")
-            if (redPercentage > 0):
+            if (redPixelCount > 0):
                 self.state = "exiting_crosswalk"
             else:
                 self.state = "driving"        
@@ -203,6 +209,14 @@ class robot_controller:
         vel_msg.linear.x = xVelocity
         vel_msg.angular.z = zTwist
         self.velocity_cmd.publish(vel_msg)       
+    
+    def stop(self):
+        xVelocity = 0.00
+        zTwist = 0.0
+        vel_msg = Twist()
+        vel_msg.linear.x = xVelocity
+        vel_msg.angular.z = zTwist
+        self.velocity_cmd.publish(vel_msg)   
 
 
 def main(args):
