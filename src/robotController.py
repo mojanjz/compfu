@@ -118,7 +118,8 @@ class robot_controller:
 
         #State machine for driving
         if(self.state == "initializing"):
-            initImage = cv_image[rows-300:,0:cols]
+            middlePixel = cols / 2
+            initImage = cv_image[rows-300:,middlePixel-100:middlePixel+100]
             initWhiteMask = cv2.inRange(initImage,lowerWhite,upperWhite)
             initWhiteOutput = cv2.bitwise_and(initImage, initImage, mask = initWhiteMask)
             initWhitePercentage = np.divide(float(np.count_nonzero(initWhiteOutput)) , float(np.count_nonzero(initImage)))            
@@ -129,7 +130,7 @@ class robot_controller:
             cv2.imshow("init white output",initWhiteOutput)
             cv2.waitKey(3)
             #DONT CHANGE THIS VAL: If white percentage is less than 10%, we haven't gone straight long enough and should keep going
-            if (initWhitePercentage < 0.10 and self.initDoneStraight == False):
+            if (initWhitePercentage < 0.03 and self.initDoneStraight == False):
                 print("Going straight to init")
                 self.pid(self.GO_STRAIGHT)
 
@@ -139,7 +140,7 @@ class robot_controller:
                 self.initDoneStraight = True
                 print("else")
                 #If still facing the line head on, turn left.  Done to compensate for cropping only the right side of the image for line following.
-                if(initWhitePercentage > 0.06):
+                if(initWhitePercentage > 0.015):
                     print("Still facing - Turning to init")
                     self.pid(self.TURN_LEFT)
                 #If you've lined up with right lane line, drive on
