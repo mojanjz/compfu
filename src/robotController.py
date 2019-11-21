@@ -16,6 +16,8 @@ from std_msgs.msg import String
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 
+from skimage.measure import compare_ssim
+
 
 class robot_controller:
     #This will be our state machine
@@ -29,10 +31,15 @@ class robot_controller:
         self.sawCrosswalk = False
         self.atCrosswalk = False
         self.offCrosswalk = True
-        self.state =  "initializing" #CHANGE "initializing"
+        self.state =  "driving" #CHANGE "initializing"
         self.GO_STRAIGHT = self.targetOffset
         self.TURN_LEFT = 0
         self.initDoneStraight = False
+        self.pedCounter = 0
+        self.prevPedView = 0
+        self.prevPedScore = 100
+        self.scores = []
+        self.pedTimer = 0
 
     def callback(self,data):
         try:
@@ -161,11 +168,11 @@ class robot_controller:
             print("Driving...")
             self.pid(offset) #CHANGE
             #Decide on exit state - for time trials
-            self.state = "driving"
-            # if(redPixelCount == 0):
-            #         self.state = "driving"
-            # else:
-            #         self.state = "entering_crosswalk"
+            # self.state = "driving"
+            if(redPixelCount == 0):
+                    self.state = "driving"
+            else:
+                    self.state = "entering_crosswalk"
             
         
         elif (self.state == "entering_crosswalk"):
@@ -175,18 +182,38 @@ class robot_controller:
                 self.state = "entering_crosswalk"
             else:
                 self.state = "waiting_for_ped"
+                pedImage = cv2.cvtColor(cv_image[rows-300:rows-200,350:cols-350],cv2.COLOR_BGR2GRAY)
+                self.prevPedView = pedImage
+                self.pedTimer = time.time()
 
         elif (self.state == "waiting_for_ped"):
             self.stop()
-            pedImage = cv_image[rows-300:,0:cols]
+            pedImage = cv2.cvtColor(cv_image[rows-300:rows-200,350:cols-350],cv2.COLOR_BGR2GRAY)
+            if (self.pedCounter % 3 == 0):
+                (score,diff) = compare_ssim(pedImage,self.prevPedView, full=True)
+                cv2.imshow("prevPedView",self.prevPedView)
+                # print("difference in score")
+                # print(abs(score - self.prevPedScore))
+                diffScore = abs(score - self.prevPedScore) 
+                self.scores.append(diffScore)
+                if(time.time() - self.pedTimer > 4):
+                    lastThreeDiff = self.scores[len(self.scores)-5:]
+                    averageDiff = sum(lastThreeDiff) / len(lastThreeDiff)
+                    print("average diff")
+                    print(averageDiff)
+                    if(averageDiff < 0.0005):
+                        self.state = "on_crosswalk"
+                self.prevPedScore = score
+                self.prevPedView = pedImage
             # pedWhiteMask = cv2.inRange(pedImage, lowerWhite, upperWhite)
             # pedWhitePercentage = np.divide(float(np.count_nonzero(pedWhiteMask)) , float(np.count_nonzero(pedImage)))            
-            print("Waiting for pedestrian...")
+            # print("Waiting for pedestrian...")
 
             cv2.imshow("PedView",pedImage)
             cv2.waitKey(3)
 
         elif (self.state == "on_crosswalk"):
+            self.pedTimer = time.time() #resetting the timer for pedestrian
             self.pid(offset)
             print("On crosswalk...")
             if (redPixelCount ==0):
@@ -200,7 +227,8 @@ class robot_controller:
             if (redPixelCount > 0):
                 self.state = "exiting_crosswalk"
             else:
-                self.state = "driving"        
+                self.state = "driving" 
+        self.pedCounter += 1   
             
 
     def pid(self,offset):
