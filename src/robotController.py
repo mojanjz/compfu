@@ -29,7 +29,7 @@ class robot_controller:
         self.sawCrosswalk = False
         self.atCrosswalk = False
         self.offCrosswalk = True
-        self.state =  "driving" #CHANGE "initializing"
+        self.state =  "initializing" #CHANGE "initializing"
         self.GO_STRAIGHT = self.targetOffset
         self.TURN_LEFT = 0
         self.initDoneStraight = False
@@ -46,7 +46,7 @@ class robot_controller:
         warped_img = cv_image[rows-200:, cols-400:cols] #CHANGE 
         crosswalkImage = cv_image[rows-200:,0:cols]
         pedImage = cv_image[rows-500:,0:cols]
-        initImage = cv_image[rows-300:,0:cols]
+        
         #color masks 
         #detecting lines on the street
         lowerWhite = np.array([250, 250, 250],dtype = "uint8")
@@ -54,8 +54,7 @@ class robot_controller:
         whiteMask = cv2.inRange(warped_img, lowerWhite, upperWhite)
         whiteMask = cv2.medianBlur(whiteMask, 5)
         whiteMask = cv2.erode(whiteMask, None, iterations=2)
-        #initialization
-        initWhiteMask = cv2.inRange(initImage,lowerWhite,upperWhite)
+
         #detecting the street
         lowerGray = np.array([50, 80, 50],dtype = "uint8")
         upperGray = np.array([190, 90, 90],dtype = "uint8")
@@ -78,7 +77,7 @@ class robot_controller:
         grayOutput = cv2.bitwise_and(warped_img, warped_img, mask = grayMask)
         whiteOutput = cv2.bitwise_and(warped_img, warped_img, mask = whiteMask)
         blueOutput = cv2.bitwise_and(warped_img, warped_img, mask = blueMask)
-        initWhiteOutput = cv2.bitwise_and(initImage, initImage, mask = initWhiteMask)
+        
         #Find cropped images for driving
         grayWarped = cv2.cvtColor(whiteOutput,cv2.COLOR_BGR2GRAY)
         ret,thresh = cv2.threshold(grayWarped, 20, 255, 0)
@@ -86,9 +85,6 @@ class robot_controller:
             
         #check if we can see the red line indicating a cross walk
         redPixelCount = np.count_nonzero(redOutput)
-
-        cv2.imshow("init white output",initWhiteOutput)
-        cv2.waitKey(3)
         
         #Find center of mass for initialization & driving
         M = cv2.moments(img)
@@ -118,23 +114,32 @@ class robot_controller:
         cv2.imshow("contour image",cv_image)
         cv2.waitKey(3)
         cv2.imshow("crosswalk view",crosswalkImage)
+        cv2.imshow("whiteOutput", whiteOutput)
 
         #State machine for driving
         if(self.state == "initializing"):
+            initImage = cv_image[rows-300:,0:cols]
+            initWhiteMask = cv2.inRange(initImage,lowerWhite,upperWhite)
+            initWhiteOutput = cv2.bitwise_and(initImage, initImage, mask = initWhiteMask)
             initWhitePercentage = np.divide(float(np.count_nonzero(initWhiteOutput)) , float(np.count_nonzero(initImage)))            
             initComplete = False
             print("Initializing")
             print("White Percentage:")
             print(initWhitePercentage)
-            #If white percentage is less than 20%, we haven't gone straight long enough and should keep going
-            if (initWhitePercentage < 0.11 and self.initDoneStraight == False):
+            cv2.imshow("init white output",initWhiteOutput)
+            cv2.waitKey(3)
+            #DONT CHANGE THIS VAL: If white percentage is less than 10%, we haven't gone straight long enough and should keep going
+            if (initWhitePercentage < 0.10 and self.initDoneStraight == False):
                 print("Going straight to init")
                 self.pid(self.GO_STRAIGHT)
+
             else:
+                print("Offset")
+                print(offset)
                 self.initDoneStraight = True
                 print("else")
-                #If still facing the line head on, turn left
-                if(initWhitePercentage > 0.05):
+                #If still facing the line head on, turn left.  Done to compensate for cropping only the right side of the image for line following.
+                if(initWhitePercentage > 0.06):
                     print("Still facing - Turning to init")
                     self.pid(self.TURN_LEFT)
                 #If you've lined up with right lane line, drive on
@@ -145,6 +150,7 @@ class robot_controller:
                 else:
                     print("Turning to init")
                     self.pid(self.TURN_LEFT)
+
             if (initComplete == True):
                 self.state = "driving"
             else:
@@ -153,12 +159,12 @@ class robot_controller:
         if (self.state == "driving"): #CHANGE
             print("Driving...")
             self.pid(offset) #CHANGE
-            # #Decide on exit state - for time trials
-            # self.state = "driving"
-            if(redPixelCount == 0):
-                    self.state = "driving"
-            else:
-                    self.state = "entering_crosswalk"
+            #Decide on exit state - for time trials
+            self.state = "driving"
+            # if(redPixelCount == 0):
+            #         self.state = "driving"
+            # else:
+            #         self.state = "entering_crosswalk"
             
         
         elif (self.state == "entering_crosswalk"):
