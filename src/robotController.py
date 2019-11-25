@@ -92,7 +92,9 @@ class robot_controller:
             
         #check if we can see the red line indicating a cross walk
         redPixelCount = np.count_nonzero(redOutput)
-        
+        print(redPixelCount)
+        cv2.imshow("redOutput",redOutput)
+        cv2.waitKey(3)
         #Find center of mass for initialization & driving
         M = cv2.moments(img)
         middlePixel = 0
@@ -116,12 +118,12 @@ class robot_controller:
         #Draw circles on image for troubleshooting
         cv2.circle(cv_image,(middlePixel,cY), 5, (255,0,0))
         cv2.circle(cv_image, (cX,cY), 5, (255,0,0))
-        cv2.imshow("Image window", redOutput)
-        cv2.waitKey(3)
-        cv2.imshow("contour image",cv_image)
-        cv2.waitKey(3)
-        cv2.imshow("crosswalk view",crosswalkImage)
-        cv2.imshow("whiteOutput", whiteOutput)
+        # cv2.imshow("Image window", redOutput)
+        # cv2.waitKey(3)
+        # cv2.imshow("contour image",cv_image)
+        # cv2.waitKey(3)
+        # cv2.imshow("crosswalk view",crosswalkImage)
+        # cv2.imshow("whiteOutput", whiteOutput)
 
         #State machine for driving
         if(self.state == "initializing"):
@@ -134,8 +136,8 @@ class robot_controller:
             print("Initializing")
             print("White Percentage:")
             print(initWhitePercentage)
-            cv2.imshow("init white output",initWhiteOutput)
-            cv2.waitKey(3)
+            # cv2.imshow("init white output",initWhiteOutput)
+            # cv2.waitKey(3)
             #DONT CHANGE THIS VAL: If white percentage is less than 10%, we haven't gone straight long enough and should keep going
             if (initWhitePercentage < 0.03 and self.initDoneStraight == False):
                 print("Going straight to init")
@@ -167,7 +169,7 @@ class robot_controller:
         if (self.state == "driving"): 
             print("Driving...")
             self.pid(offset) 
-            if(redPixelCount < 10):
+            if(redPixelCount < 20000):
                     self.state = "driving"
             else:
                     self.state = "entering_crosswalk"
@@ -176,7 +178,7 @@ class robot_controller:
         elif (self.state == "entering_crosswalk"):
             print("Entering crosswalk...")
             self.pid(offset)
-            if(redPixelCount>10):
+            if(redPixelCount>20000):
                 self.state = "entering_crosswalk"
             else:
                 self.state = "waiting_for_ped"
@@ -189,12 +191,12 @@ class robot_controller:
             pedImage = cv2.cvtColor(cv_image[rows-300:rows-200,350:cols-350],cv2.COLOR_BGR2GRAY)
             if (self.pedCounter % 3 == 0):
                 (score,diff) = compare_ssim(pedImage,self.prevPedView, full=True)
-                cv2.imshow("prevPedView",self.prevPedView)
+                # cv2.imshow("prevPedView",self.prevPedView)
                 # print("difference in score")
                 # print(abs(score - self.prevPedScore))
                 diffScore = abs(score - self.prevPedScore) 
                 self.scores.append(diffScore)
-                if(time.time() - self.pedTimer > 5):
+                if(time.time() - self.pedTimer > 0.5):
                     lastThreeDiff = self.scores[len(self.scores)-6:]
                     averageDiff = sum(lastThreeDiff) / len(lastThreeDiff)
                     print("average diff")
@@ -207,8 +209,8 @@ class robot_controller:
             # pedWhitePercentage = np.divide(float(np.count_nonzero(pedWhiteMask)) , float(np.count_nonzero(pedImage)))            
             # print("Waiting for pedestrian...")
 
-            cv2.imshow("PedView",pedImage)
-            cv2.waitKey(3)
+            # cv2.imshow("PedView",pedImage)
+            # cv2.waitKey(3)
 
         elif (self.state == "on_crosswalk"):
             self.pedTimer = time.time() #resetting the timer for pedestrian
@@ -228,14 +230,14 @@ class robot_controller:
                 print(offset)
             self.pid(offset)
             print("On crosswalk...")
-            if (redPixelCount <10):
+            if (redPixelCount <20000):
                 self.state = "on_crosswalk"
             else:
                 self.state = "exiting_crosswalk"
         elif (self.state == "exiting_crosswalk"):
             self.pid(offset)
             print("Exiting crosswalk...")
-            if (redPixelCount > 10):
+            if (redPixelCount > 20000):
                 self.state = "exiting_crosswalk"
             else:
                 self.state = "driving" 
